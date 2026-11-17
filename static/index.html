@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>批量重命名 · Files &amp; Folders</title>
+<style>
+  :root {
+    --bg: #f4f6fb;
+    --card: #ffffff;
+    --line: #e2e8f0;
+    --text: #16202e;
+    --muted: #6b778c;
+    --accent: #2563eb;
+    --accent-soft: #e8efff;
+    --danger: #dc2626;
+    --ok: #15803d;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+  }
+  header {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    padding: 14px 20px; background: var(--card); border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 17px; margin: 0; letter-spacing: .2px; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  .root-bar { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+  .root-bar label { color: var(--muted); font-size: 12px; }
+  input[type="text"], input[type="number"], select {
+    border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px;
+    font-size: 13px; background: #fff; color: var(--text); outline: none;
+  }
+  input[type="text"]:focus, input[type="number"]:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  button {
+    border: 1px solid var(--line); background: #fff; color: var(--text);
+    border-radius: 8px; padding: 7px 14px; font-size: 13px; cursor: pointer;
+    transition: .15s;
+  }
+  button:hover { border-color: #c7d2e3; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { background: #1d4ed8; }
+  button.ghost { background: transparent; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+
+  .app { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; padding: 16px; align-items: start; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+  .card-head { padding: 12px 14px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
+
+  .tabs { display: flex; gap: 4px; background: #eef2f9; padding: 3px; border-radius: 9px; }
+  .tab { border: none; background: transparent; padding: 6px 18px; border-radius: 7px; font-weight: 500; color: var(--muted); }
+  .tab.active { background: #fff; color: var(--accent); box-shadow: 0 1px 3px rgba(15,23,42,.1); }
+
+  .toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .toolbar input[type="text"] { flex: 1 1 200px; min-width: 160px; }
+  .check { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12.5px; cursor: pointer; user-select: none; }
+  .stat { margin-left: auto; color: var(--muted); font-size: 12px; }
+
+  .table-wrap { max-height: calc(100vh - 250px); overflow: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    position: sticky; top: 0; background: #fafbfe; z-index: 1;
+    text-align: left; font-size: 12px; font-weight: 600; color: var(--muted);
+    padding: 9px 12px; border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  tbody td { padding: 9px 12px; border-bottom: 1px solid #f0f3f9; font-size: 13px; }
+  tbody tr:hover { background: #f8faff; }
+  tbody tr.selected { background: var(--accent-soft); }
+  td.name { font-weight: 500; word-break: break-all; }
+  td.path, td.time { color: var(--muted); font-size: 12px; word-break: break-all; }
+  td.size { color: var(--muted); white-space: nowrap; }
+  .badge {
+    display: inline-block; font-size: 10px; line-height: 1; padding: 3px 5px;
+    border-radius: 4px; margin-right: 7px; vertical-align: 1px;
+  }
+  .badge.dir { background: #fff4dd; color: #a16207; }
+  .badge.file { background: #e7f0ff; color: #1d4ed8; }
+  /* 列表占位：限定到 #empty，避免与 .tree-caret.empty 等通用类名冲突 */
+  #empty { padding: 60px 20px; text-align: center; color: var(--muted); }
+
+  aside .card-head h2 { font-size: 14px; margin: 0; }
+  .rules { padding: 10px 14px 4px; max-height: calc(100vh - 330px); min-height: 120px; overflow: auto; }
+  .rule-group { padding: 12px 0; border-bottom: 1px dashed var(--line); }
+  .rule-group:last-child { border-bottom: none; }
+  .rule-title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; margin-bottom: 8px; cursor: pointer; }
+  .rule-title input { accent-color: var(--accent); }
+  .rule-body { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding-left: 2px; }
+  .rule-body.off { opacity: .42; pointer-events: none; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field span { font-size: 11.5px; color: var(--muted); }
+  .field input, .field select { width: 100%; }
+  .field.full { grid-column: span 2; }
+  .hint { font-size: 11.5px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+  .actions { display: flex; gap: 8px; padding: 0 14px 14px; }
+  .actions button { flex: 1; padding: 10px 0; }
+
+  .modal { position: fixed; inset: 0; background: rgba(15,23,42,.45); display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 50; }
+  .modal[hidden] { display: none; }
+  .modal-card { background: #fff; border-radius: 14px; width: min(760px, 100%); max-height: 84vh; display: flex; flex-direction: column; overflow: hidden; }
+  .modal-head { display: flex; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+  .modal-head h2 { margin: 0; font-size: 15px; }
+  .modal-head button { margin-left: auto; border: none; font-size: 20px; line-height: 1; padding: 2px 8px; }
+  .modal-body { padding: 8px 18px 16px; overflow: auto; }
+  .modal-foot { padding: 12px 18px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 10px; }
+  .change-row { display: grid; grid-template-columns: 1fr 18px 1fr; gap: 8px; padding: 8px 0; border-bottom: 1px dashed #eef1f7; font-size: 12.5px; align-items: center; }
+  .change-row .old { color: var(--muted); word-break: break-all; }
+  .change-row .new { color: var(--text); font-weight: 500; word-break: break-all; }
+  .change-row .arrow { color: #b6c0d1; text-align: center; }
+  .change-row.bad .new { color: var(--danger); }
+  .change-row .err { grid-column: 1 / -1; color: var(--danger); font-size: 11.5px; }
+  .summary { padding: 10px 0 6px; font-size: 13px; }
+  .summary b { margin-right: 14px; }
+  .toast {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+    background: #16202e; color: #fff; padding: 9px 16px; border-radius: 8px;
+    font-size: 13px; z-index: 99; opacity: 0; pointer-events: none; transition: .2s;
+  }
+  .toast.show { opacity: 1; }
+  .toast.error { background: var(--danger); }
+
+  /* ---------- 目录树 ---------- */
+  .root-picker { position: relative; display: flex; align-items: center; gap: 8px; }
+  .root-picker input { width: 280px; }
+  .tree-panel {
+    position: absolute; top: calc(100% + 8px); right: 0; width: 380px; max-height: 430px;
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: 0 12px 30px rgba(15,23,42,.16); z-index: 60;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .tree-panel[hidden] { display: none; }
+  .tree-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+  .tree-head strong { color: var(--text); font-size: 13px; }
+  .tree-head button { margin-left: auto; border: none; font-size: 18px; line-height: 1; padding: 0 6px; background: transparent; }
+  .tree-body { overflow: auto; padding: 6px 6px 10px; min-height: 140px; max-height: 340px; }
+  .tree-node { display: flex; align-items: center; gap: 4px; border-radius: 7px; padding: 4px 6px; cursor: pointer; user-select: none; }
+  .tree-node:hover { background: #f2f6ff; }
+  .tree-node.current { background: var(--accent-soft); }
+  .tree-caret { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; color: var(--muted); font-size: 10px; flex: none; }
+  .tree-caret.has-child:hover { background: #e2e8f0; }
+  .tree-caret.empty { visibility: hidden; padding: 0; width: 18px; height: 18px; }
+  .tree-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  .tree-tip { padding: 8px 12px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+  .tree-tip span { flex: 1; }
+  .tree-tip button { padding: 4px 8px; font-size: 11.5px; }
+  .tree-loading { padding: 10px 12px; color: var(--muted); font-size: 12px; }
+  .tree-empty { padding: 4px 6px; color: var(--muted); font-size: 13px; display: flex; align-items: center; }
+
+  /* ---------- 动态规则卡片 ---------- */
+  .rule-card { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 10px; background: #fff; overflow: hidden; }
+  .rule-card.disabled { opacity: .55; }
+  .rule-head { display: flex; align-items: center; gap: 6px; padding: 9px 10px; cursor: pointer; }
+  .rule-head .grip { color: #b6c0d1; font-size: 12px; flex: none; }
+  .rule-head .rname { flex: 1; min-width: 0; font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rule-head .idx { font-size: 10.5px; color: var(--muted); border: 1px solid var(--line); padding: 1px 5px; border-radius: 4px; flex: none; }
+  .rule-head .icon-btn { border: none; background: transparent; padding: 3px 6px; font-size: 12px; color: var(--muted); border-radius: 6px; flex: none; }
+  .rule-head .icon-btn:hover { background: #eef2f9; color: var(--text); }
+  .rule-head .icon-btn:disabled { opacity: .25; cursor: not-allowed; }
+  .rule-body2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 4px 10px 12px; border-top: 1px dashed var(--line); }
+  .rule-body2[hidden] { display: none; }
+  .rule-extra { grid-column: span 2; }
+  .rule-inline { display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--muted); cursor: pointer; user-select: none; }
+  .add-rule { display: flex; gap: 8px; padding: 10px 14px 0; }
+  .add-rule select { flex: 1; min-width: 0; }
+  .ext-toggle { margin: 10px 14px 0; padding: 9px 10px; border: 1px dashed var(--line); border-radius: 9px; }
+  .rules-empty { padding: 26px 12px; text-align: center; color: var(--muted); font-size: 12.5px; }
+
+  @media (max-width: 940px) {
+    .app { grid-template-columns: 1fr; }
+    .table-wrap { max-height: 44vh; }
+    .rules { max-height: none; }
+    .root-bar { margin-left: 0; width: 100%; }
+    .root-bar input { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>批量重命名</h1>
+    <div class="sub">Rust + Web · 文件 / 文件夹 · 端口 8999</div>
+  </div>
+  <div class="root-bar">
+    <label for="rootInput">根目录</label>
+    <div class="root-picker">
+      <input id="rootInput" type="text" placeholder="留空为根，也可点「目录树」选择" />
+      <button id="treeBtn" class="ghost">目录树 ▾</button>
+      <div class="tree-panel" id="treePanel" hidden>
+        <div class="tree-head"><strong>选择目录</strong><span id="treeRootLabel">/data</span><button id="treeClose" title="关闭">×</button></div>
+        <div class="tree-body" id="treeBody"></div>
+        <div class="tree-tip"><span>仅显示 /data 内目录，点击名称选中</span><button id="treeRefresh">刷新</button></div>
+      </div>
+    </div>
+    <button id="loadBtn" class="primary">加载</button>
+  </div>
+</header>
+
+<div class="app">
+  <section class="card">
+    <div class="card-head">
+      <div class="tabs">
+        <button class="tab active" data-kind="file">文件</button>
+        <button class="tab" data-kind="dir">文件夹</button>
+      </div>
+      <span class="stat" id="stat">尚未加载</span>
+    </div>
+    <div class="toolbar">
+      <input id="kw" type="text" placeholder="按名称关键字筛选，留空显示全部" />
+      <label class="check"><input type="checkbox" id="recursive" checked /> 包含子目录</label>
+      <label class="check"><input type="checkbox" id="caseSensitive" /> 区分大小写</label>
+      <button id="searchBtn">筛选</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:38px"><input type="checkbox" id="checkAll" /></th>
+            <th>名称</th>
+            <th style="width:32%">相对路径</th>
+            <th style="width:90px">大小</th>
+            <th style="width:150px">修改时间</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty" id="empty">输入条件后点击「加载 / 筛选」</div>
+    </div>
+  </section>
+
+  <aside class="card">
+    <div class="card-head"><h2>重命名规则</h2><span class="stat" id="selStat">已选 0 项</span></div>
+    <div class="add-rule">
+      <select id="ruleTypeSelect">
+        <option value="serial">序列化编号</option>
+        <option value="remove">删除字符 / 关键字</option>
+        <option value="replace">替换关键字</option>
+        <option value="prefix">增加前缀</option>
+        <option value="suffix">增加后缀</option>
+      </select>
+      <button id="addRuleBtn">+ 添加规则</button>
+    </div>
+    <label class="check ext-toggle"><input type="checkbox" id="includeExt" /> 规则作用于完整文件名（含扩展名）</label>
+    <div class="rules" id="rulesList"></div>
+    <div class="hint" id="ruleHint">规则按列表顺序自上而下执行，可用 ↑ ↓ 调整顺序；每条规则可单独启用/停用、点击标题展开设置参数。默认不含扩展名（扩展名始终保留）。</div>
+    <div class="actions">
+      <button id="previewBtn">预览</button>
+      <button id="runBtn" class="primary">执行重命名</button>
+    </div>
+  </aside>
+</div>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <h2 id="modalTitle">预览</h2>
+      <button id="modalClose" title="关闭">×</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot" id="modalFoot"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const state = { kind: "file", items: [], selected: new Set(), rules: [] };
+
+  function toast(msg, isError) {
+    const el = $("toast");
+    el.textContent = msg;
+    el.className = "toast show" + (isError ? " error" : "");
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.className = "toast"; }, 2600);
+  }
+
+  async function api(path, body) {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    let data;
+    try { data = await res.json(); }
+    catch (e) { throw new Error("服务返回异常 (" + res.status + ")"); }
+    if (!data.ok) throw new Error(data.error || "请求失败");
+    return data.data;
+  }
+
+  function fmtSize(n) {
+    if (!n) return "0 B";
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    let i = 0, v = n;
+    while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+    return (i === 0 ? v : v.toFixed(1)) + " " + units[i];
+  }
+
+  function fmtTime(ts) {
+    if (!ts) return "—";
+    const d = new Date(ts * 1000);
+    const p = (x) => String(x).padStart(2, "0");
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) +
+      " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+
+  function render() {
+    const tbody = $("tbody");
+    tbody.innerHTML = "";
+    $("empty").style.display = state.items.length ? "none" : "block";
+    $("empty").textContent = state.items.length ? "" : "没有匹配的" + (state.kind === "file" ? "文件" : "文件夹");
+
+    state.items.forEach((item) => {
+      const tr = document.createElement("tr");
+      if (state.selected.has(item.rel)) tr.classList.add("selected");
+
+      const tdCheck = document.createElement("td");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = state.selected.has(item.rel);
+      cb.addEventListener("change", () => {
+        if (cb.checked) state.selected.add(item.rel);
+        else state.selected.delete(item.rel);
+        tr.classList.toggle("selected", cb.checked);
+        updateSel();
+      });
+      tdCheck.appendChild(cb);
+
+      const tdName = document.createElement("td");
+      tdName.className = "name";
+      const badge = document.createElement("span");
+      badge.className = "badge " + (item.is_dir ? "dir" : "file");
+      badge.textContent = item.is_dir ? "夹" : "件";
+      tdName.appendChild(badge);
+      tdName.appendChild(document.createTextNode(item.name));
+
+      const tdPath = document.createElement("td");
+      tdPath.className = "path";
+      tdPath.textContent = item.rel;
+
+      const tdSize = document.createElement("td");
+      tdSize.className = "size";
+      tdSize.textContent = item.is_dir ? "—" : fmtSize(item.size);
+
+      const tdTime = document.createElement("td");
+      tdTime.className = "time";
+      tdTime.textContent = fmtTime(item.modified);
+
+      tr.appendChild(tdCheck);
+      tr.appendChild(tdName);
+      tr.appendChild(tdPath);
+      tr.appendChild(tdSize);
+      tr.appendChild(tdTime);
+
+      tr.addEventListener("click", (e) => {
+        if (e.target === cb) return;
+        cb.checked = !cb.checked;
+        cb.dispatchEvent(new Event("change"));
+      });
+
+      tbody.appendChild(tr);
+    });
+    $("checkAll").checked = false;
+    updateSel();
+  }
+
+  function updateSel() {
+    $("selStat").textContent = "已选 " + state.selected.size + " 项";
+  }
+
+  async function load() {
+    const body = {
+      root: $("rootInput").value.trim(),
+      kind: state.kind,
+      keyword: $("kw").value,
+      recursive: $("recursive").checked,
+      case_sensitive: $("caseSensitive").checked
+    };
+    $("stat").textContent = "加载中…";
+    try {
+      const data = await api("/api/list", body);
+      state.items = data.items || [];
+      state.selected.clear();
+      render();
+      $("stat").textContent = "共 " + data.total + " 项" + (data.truncated ? "（结果已截断）" : "") + " · " + data.root;
+    } catch (e) {
+      $("stat").textContent = "加载失败";
+      toast(e.message, true);
+    }
+  }
+
+  /* ---------------- 目录树（懒加载，仅 /data 内） ---------------- */
+  const treeState = { expanded: new Set(), nodes: new Map(), locateToken: 0, locating: false };
+
+  function el(tag, cls, text) {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+
+  function currentRoot() {
+    return $("rootInput").value.trim().replace(/^\/+|\/+$/g, "");
+  }
+
+  async function loadChildren(rel, container, depth, silent) {
+    const tip = el("div", "tree-loading", "加载中…");
+    container.appendChild(tip);
+    try {
+      const data = await api("/api/dirs", { root: rel === "/" ? "" : rel });
+      tip.remove();
+      const items = data.dirs || data.items || [];
+      if (!items.length) {
+        const empty = el("div", "tree-empty", "（无子目录）");
+        empty.style.paddingLeft = (6 + depth * 14 + 22) + "px";
+        container.appendChild(empty);
+        return;
+      }
+      items.forEach((d) => paintNode(d, container, depth));
+    } catch (e) {
+      tip.remove();
+      if (!silent) container.appendChild(el("div", "tree-loading", "加载失败：" + e.message));
+    }
+  }
+
+  function paintNode(node, container, depth) {
+    const rel = node.rel === "/" ? "/" : node.rel;
+    const row = el("div", "tree-node");
+    row.style.paddingLeft = (6 + depth * 14) + "px";
+    const cur = currentRoot();
+    if (rel === "/" ? cur === "" : cur === rel) row.classList.add("current");
+
+    const caret = el("span", "tree-caret" + (node.has_children ? " has-child" : " empty"), "▸");
+    row.appendChild(caret);
+    row.appendChild(el("span", "tree-label", node.name));
+    container.appendChild(row);
+
+    const childBox = el("div", "tree-children");
+    container.appendChild(childBox);
+    let loaded = false;
+    let loading = null;
+
+    // silent=true 时加载失败不渲染错误占位，用于打开面板时的自动定位降级
+    async function expand(silent) {
+      treeState.expanded.add(rel);
+      caret.textContent = "▾";
+      childBox.hidden = false;
+      if (loaded) return loading;
+      loaded = true;
+      loading = loadChildren(rel, childBox, depth + 1, silent);
+      await loading;
+    }
+
+    treeState.nodes.set(rel, { row, childBox, expand, hasChildren: !!node.has_children });
+
+    caret.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (!node.has_children) return;
+      if (treeState.expanded.has(rel)) {
+        treeState.expanded.delete(rel);
+        childBox.hidden = true;
+        caret.textContent = "▸";
+      } else {
+        await expand();
+      }
+    });
+
+    row.addEventListener("click", () => {
+      $("rootInput").value = rel === "/" ? "" : rel;
+      closeTree();
+      load();
+    });
+
+    if (node.has_children && treeState.expanded.has(rel)) expand(treeState.locating);
+  }
+
+  function centerRow(row) {
+    if (!row) return;
+    const body = $("treeBody");
+    const rowBox = row.getBoundingClientRect();
+    const bodyBox = body.getBoundingClientRect();
+    const offset = (rowBox.top - bodyBox.top) + body.scrollTop;
+    body.scrollTop = Math.max(0, offset - (body.clientHeight - rowBox.height) / 2);
+  }
+
+  // 打开面板时定位一次到当前根目录：逐级展开祖先并居中当前节点；失败静默停留在根节点
+  async function autoLocate(token) {
+    const rootNode = treeState.nodes.get("/");
+    if (!rootNode) { treeState.locating = false; return; }
+    try {
+      const cur = currentRoot();
+      await rootNode.expand(true);
+      if (token !== treeState.locateToken) return;
+      if (!cur) { centerRow(rootNode.row); return; }
+      const segs = cur.split("/").filter(Boolean);
+      let prefix = "";
+      let target = null;
+      for (const seg of segs) {
+        prefix = prefix ? prefix + "/" + seg : seg;
+        const node = treeState.nodes.get(prefix);
+        if (!node) return;
+        target = node;
+        if (prefix !== cur) {
+          if (!node.hasChildren) return;
+          await node.expand(true);
+          if (token !== treeState.locateToken) return;
+        }
+      }
+      if (target) {
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (token === treeState.locateToken) centerRow(target.row);
+        }));
+      }
+    } catch (e) {
+      // 静默降级：仅保留根节点，不打断用户操作
+    } finally {
+      if (token === treeState.locateToken) treeState.locating = false;
+    }
+  }
+
+  function openTree(force) {
+    const panel = $("treePanel");
+    const body = $("treeBody");
+    if (!panel.hidden && !force) { closeTree(); return; }
+    panel.hidden = false;
+    body.innerHTML = "";
+    treeState.nodes.clear();
+    if (force) treeState.expanded.clear();
+    treeState.expanded.add("/");
+    treeState.locating = true;
+    paintNode({ name: "/data（根目录）", rel: "/", has_children: true }, body, 0);
+    autoLocate(++treeState.locateToken);
+  }
+
+  function closeTree() { $("treePanel").hidden = true; }
+
+  /* ---------------- 动态规则列表 ---------------- */
+  const RULE_META = {
+    serial: "序列化编号",
+    remove: "删除字符 / 关键字",
+    replace: "替换关键字",
+    prefix: "增加前缀",
+    suffix: "增加后缀"
+  };
+  let ruleSeq = 0;
+
+  function newRule(type) {
+    const r = { id: ++ruleSeq, type: type, enabled: true, open: false, params: {} };
+    if (type === "serial") r.params = { start: 1, step: 1, padding: 3, separator: "_", position: "prefix" };
+    if (type === "remove") r.params = { mode: "keyword", keyword: "", all: true, case_sensitive: false, position: 1 };
+    if (type === "replace") r.params = { from: "", to: "", all: true, case_sensitive: false };
+    if (type === "prefix") r.params = { value: "" };
+    if (type === "suffix") r.params = { value: "" };
+    return r;
+  }
+
+  function labeled(label, control, extraCls) {
+    const wrap = el("label", "field" + (extraCls ? " " + extraCls : ""));
+    wrap.appendChild(el("span", null, label));
+    wrap.appendChild(control);
+    return wrap;
+  }
+
+  function textInput(value, placeholder, onInput) {
+    const i = document.createElement("input");
+    i.type = "text";
+    i.value = value == null ? "" : value;
+    if (placeholder) i.placeholder = placeholder;
+    i.addEventListener("input", () => onInput(i.value));
+    return i;
+  }
+
+  function numberInput(value, min, max, onInput) {
+    const i = document.createElement("input");
+    i.type = "number";
+    i.value = value;
+    i.min = String(min);
+    if (max != null) i.max = String(max);
+    i.addEventListener("input", () => {
+      let v = parseInt(i.value, 10);
+      if (isNaN(v)) v = min;
+      if (v < min) v = min;
+      if (max != null && v > max) v = max;
+      onInput(v);
+    });
+    return i;
+  }
+
+  function selectInput(options, value, onChange) {
+    const s = document.createElement("select");
+    options.forEach((o) => {
+      const op = el("option", null, o.label);
+      op.value = o.value;
+      s.appendChild(op);
+    });
+    s.value = value;
+    s.addEventListener("change", () => onChange(s.value));
+    return s;
+  }
+
+  function checkboxLine(text, checked, onChange) {
+    const l = el("label", "rule-inline");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = !!checked;
+    cb.addEventListener("change", () => onChange(cb.checked));
+    l.appendChild(cb);
+    l.appendChild(document.createTextNode(text));
+    return l;
+  }
+
+  function buildRuleBody(r, body) {
+    const p = r.params;
+    if (r.type === "serial") {
+      body.appendChild(labeled("起始值", numberInput(p.start, 0, null, (v) => { p.start = v; })));
+      body.appendChild(labeled("步长", numberInput(p.step, 1, null, (v) => { p.step = v; })));
+      body.appendChild(labeled("位数（补零）", numberInput(p.padding, 1, 10, (v) => { p.padding = v; })));
+      body.appendChild(labeled("位置", selectInput([
+        { value: "prefix", label: "名称前" },
+        { value: "suffix", label: "名称后" }
+      ], p.position, (v) => { p.position = v; })));
+      body.appendChild(labeled("分隔符", textInput(p.separator, "如 _", (v) => { p.separator = v; }), "rule-extra"));
+    } else if (r.type === "remove") {
+      body.appendChild(labeled("模式", selectInput([
+        { value: "keyword", label: "删除关键字" },
+        { value: "cut_left", label: "删除前 N 位字符" },
+        { value: "cut_right", label: "删除后 N 位字符" }
+      ], p.mode, (v) => { p.mode = v; renderRules(); }), "rule-extra"));
+      if (p.mode === "cut_left") {
+        body.appendChild(labeled("删除前 N 个字符（0 = 不删除）", numberInput(p.position, 0, null, (v) => { p.position = v; }), "rule-extra"));
+      } else if (p.mode === "cut_right") {
+        body.appendChild(labeled("删除后 N 个字符（0 = 不删除）", numberInput(p.position, 0, null, (v) => { p.position = v; }), "rule-extra"));
+      } else {
+        body.appendChild(labeled("关键字", textInput(p.keyword, "如 副本", (v) => { p.keyword = v; }), "rule-extra"));
+        body.appendChild(checkboxLine("删除全部匹配", p.all, (v) => { p.all = v; }));
+        body.appendChild(checkboxLine("区分大小写", p.case_sensitive, (v) => { p.case_sensitive = v; }));
+      }
+    } else if (r.type === "replace") {
+      body.appendChild(labeled("查找", textInput(p.from, "原文本", (v) => { p.from = v; })));
+      body.appendChild(labeled("替换为", textInput(p.to, "新文本", (v) => { p.to = v; })));
+      body.appendChild(checkboxLine("替换全部匹配", p.all, (v) => { p.all = v; }));
+      body.appendChild(checkboxLine("区分大小写", p.case_sensitive, (v) => { p.case_sensitive = v; }));
+    } else if (r.type === "prefix") {
+      body.appendChild(labeled("前缀内容", textInput(p.value, "加在名称前", (v) => { p.value = v; }), "rule-extra"));
+    } else if (r.type === "suffix") {
+      body.appendChild(labeled("后缀内容", textInput(p.value, "加在名称后", (v) => { p.value = v; }), "rule-extra"));
+    }
+  }
+
+  function moveRule(i, delta) {
+    const j = i + delta;
+    if (j < 0 || j >= state.rules.length) return;
+    const tmp = state.rules[i];
+    state.rules[i] = state.rules[j];
+    state.rules[j] = tmp;
+    renderRules();
+  }
+
+  function renderRules() {
+    const box = $("rulesList");
+    box.innerHTML = "";
+    if (!state.rules.length) {
+      box.appendChild(el("div", "rules-empty", "暂无规则，请从上方选择类型后点击「+ 添加规则」"));
+      return;
+    }
+    state.rules.forEach((r, i) => {
+      const card = el("div", "rule-card" + (r.enabled ? "" : " disabled"));
+      const head = el("div", "rule-head");
+
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = r.enabled;
+      cb.title = "启用 / 停用";
+      cb.addEventListener("click", (e) => e.stopPropagation());
+      cb.addEventListener("change", () => { r.enabled = cb.checked; renderRules(); });
+
+      const up = el("button", "icon-btn", "↑");
+      up.title = "上移";
+      up.disabled = i === 0;
+      up.addEventListener("click", (e) => { e.stopPropagation(); moveRule(i, -1); });
+
+      const down = el("button", "icon-btn", "↓");
+      down.title = "下移";
+      down.disabled = i === state.rules.length - 1;
+      down.addEventListener("click", (e) => { e.stopPropagation(); moveRule(i, 1); });
+
+      const del = el("button", "icon-btn", "✕");
+      del.title = "删除规则";
+      del.addEventListener("click", (e) => { e.stopPropagation(); state.rules.splice(i, 1); renderRules(); });
+
+      head.appendChild(el("span", "grip", "☰"));
+      head.appendChild(cb);
+      head.appendChild(el("span", "rname", RULE_META[r.type] || r.type));
+      head.appendChild(el("span", "idx", "第 " + (i + 1) + " 步"));
+      head.appendChild(up);
+      head.appendChild(down);
+      head.appendChild(del);
+      head.addEventListener("click", () => { r.open = !r.open; renderRules(); });
+
+      const body = el("div", "rule-body2");
+      body.hidden = !r.open;
+      buildRuleBody(r, body);
+
+      card.appendChild(head);
+      card.appendChild(body);
+      box.appendChild(card);
+    });
+  }
+
+  function buildRule() {
+    return {
+      include_ext: $("includeExt").checked,
+      rules: state.rules.filter((r) => r.enabled).map((r) => Object.assign({ type: r.type }, r.params))
+    };
+  }
+
+  function hasRule(rule) {
+    return !!(rule && rule.rules && rule.rules.length);
+  }
+
+
+  function requestBody(dryRun) {
+    return {
+      root: $("rootInput").value.trim(),
+      items: Array.from(state.selected),
+      rule: buildRule(),
+      dry_run: dryRun
+    };
+  }
+
+  function showModal(title, html, footButtons) {
+    $("modalTitle").textContent = title;
+    $("modalBody").innerHTML = "";
+    if (html) $("modalBody").appendChild(html);
+    const foot = $("modalFoot");
+    foot.innerHTML = "";
+    footButtons.forEach((b) => {
+      const btn = document.createElement("button");
+      btn.textContent = b.label;
+      if (b.primary) btn.className = "primary";
+      btn.addEventListener("click", b.onClick);
+      foot.appendChild(btn);
+    });
+    $("modal").hidden = false;
+  }
+
+  function closeModal() { $("modal").hidden = true; }
+
+  function buildResultDom(data, isPreview) {
+    const wrap = document.createElement("div");
+    const sum = document.createElement("div");
+    sum.className = "summary";
+    sum.innerHTML = "<b>共 " + data.total + " 项</b>" +
+      (isPreview ? "" : "<b style='color:var(--ok)'>成功 " + data.success + "</b>") +
+      "<b style='color:var(--danger)'>跳过/失败 " + data.failed + "</b>";
+    wrap.appendChild(sum);
+
+    data.items.forEach((it) => {
+      const row = document.createElement("div");
+      row.className = "change-row" + (it.error ? " bad" : "");
+
+      const oldEl = document.createElement("div");
+      oldEl.className = "old";
+      oldEl.textContent = it.from;
+
+      const arrow = document.createElement("div");
+      arrow.className = "arrow";
+      arrow.textContent = "→";
+
+      const newEl = document.createElement("div");
+      newEl.className = "new";
+      newEl.textContent = it.to || "—";
+
+      row.appendChild(oldEl);
+      row.appendChild(arrow);
+      row.appendChild(newEl);
+
+      if (it.error) {
+        const err = document.createElement("div");
+        err.className = "err";
+        err.textContent = it.error;
+        row.appendChild(err);
+      }
+      wrap.appendChild(row);
+    });
+    return wrap;
+  }
+
+  async function preview() {
+    if (!state.selected.size) return toast("请先勾选要处理的项", true);
+    const rule = buildRule();
+    if (!hasRule(rule)) return toast("请至少启用一条重命名规则", true);
+    try {
+      const data = await api("/api/preview", requestBody(true));
+      showModal("预览（尚未修改）", buildResultDom(data, true), [
+        { label: "取消", onClick: closeModal },
+        { label: "确认执行", primary: true, onClick: () => doRename() }
+      ]);
+    } catch (e) { toast(e.message, true); }
+  }
+
+  async function doRename() {
+    const count = state.selected.size;
+    if (!count) return toast("请先勾选要处理的项", true);
+    try {
+      const data = await api("/api/rename", requestBody(false));
+      showModal("执行结果", buildResultDom(data, false), [
+        { label: "关闭并刷新", primary: true, onClick: () => { closeModal(); load(); } }
+      ]);
+      if (data.success > 0) toast("已完成 " + data.success + " 项重命名");
+    } catch (e) { toast(e.message, true); }
+  }
+
+  function run() {
+    if (!state.selected.size) return toast("请先勾选要处理的项", true);
+    const rule = buildRule();
+    if (!hasRule(rule)) return toast("请至少启用一条重命名规则", true);
+    if (confirm("将对已选的 " + state.selected.size + " 项执行重命名，是否继续？")) doRename();
+  }
+
+  document.querySelectorAll(".tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
+      state.kind = tab.dataset.kind;
+      state.selected.clear();
+      load();
+    });
+  });
+
+  $("checkAll").addEventListener("change", (e) => {
+    const checked = e.target.checked;
+    state.items.forEach((it) => {
+      if (checked) state.selected.add(it.rel);
+      else state.selected.delete(it.rel);
+    });
+    document.querySelectorAll("#tbody input[type=checkbox]").forEach((cb) => { cb.checked = checked; });
+    document.querySelectorAll("#tbody tr").forEach((tr) => tr.classList.toggle("selected", checked));
+    updateSel();
+  });
+
+  $("loadBtn").addEventListener("click", load);
+  $("searchBtn").addEventListener("click", load);
+  $("kw").addEventListener("keydown", (e) => { if (e.key === "Enter") load(); });
+  $("rootInput").addEventListener("keydown", (e) => { if (e.key === "Enter") load(); });
+  $("previewBtn").addEventListener("click", preview);
+  $("runBtn").addEventListener("click", run);
+  $("modalClose").addEventListener("click", closeModal);
+  $("modal").addEventListener("click", (e) => { if (e.target === $("modal")) closeModal(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeModal(); closeTree(); } });
+
+  $("treeBtn").addEventListener("click", () => openTree(false));
+  $("treeClose").addEventListener("click", closeTree);
+  $("treeRefresh").addEventListener("click", () => openTree(true));
+  document.addEventListener("click", (e) => {
+    if (!$("treePanel").hidden && !e.target.closest(".root-picker")) closeTree();
+  });
+
+  $("addRuleBtn").addEventListener("click", () => {
+    const r = newRule($("ruleTypeSelect").value);
+    r.open = true;
+    state.rules.push(r);
+    renderRules();
+  });
+
+  // 默认给出五类规则（全部停用），保持与旧界面一致的可见性
+  state.rules = ["serial", "remove", "replace", "prefix", "suffix"].map((t) => {
+    const r = newRule(t);
+    r.enabled = false;
+    return r;
+  });
+  renderRules();
+
+  load();
+})();
+</script>
+</body>
+</html>

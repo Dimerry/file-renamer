@@ -1,0 +1,18 @@
+[package]
+name = "file-renamer"
+version = "0.2.0"
+edition = "2021"
+description = "Web-based batch file/folder renamer written in Rust"
+
+[dependencies]
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tower-http = { version = "0.5", features = ["fs", "trace"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
